@@ -235,9 +235,8 @@ class SeranganBypasser:
             limit=config['max_concurrent'],
             limit_per_host=config['max_concurrent'] // len(targets),
             use_dns_cache=False,  # Avoid DNS caching
-            keepalive_timeout=30,
             enable_cleanup_closed=True,
-            force_close=True,  # Force close connections
+            force_close=True,  # Force close connections - no keepalive needed
             ttl_dns_cache=60,
             ssl=self.create_ssl_context()
         )
