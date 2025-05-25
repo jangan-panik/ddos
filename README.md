@@ -108,8 +108,10 @@ Ultimate collection of high-performance load testing tools with advanced WAF/Clo
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/seowot48-ultimate-bypasser-ultra.git
-cd seowot48-ultimate-bypasser-ultra
+git clone https://github.com/jangan-panik/ddos.git
+cd ddos
+
+apt install python3-pip
 
 # Install dependencies
 pip install -r requirements.txt
